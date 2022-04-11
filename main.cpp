@@ -4,7 +4,7 @@
 #include <cmath>
 #include <functional>
 
-std::vector<std::string> valid_tokens = {"+", "-", "*", "/", "^", "(", ")", "sin", "cos", "tan", "pi"};
+std::vector<std::string> valid_tokens = {"+", "-", "*", "/", "^", "(", ")", "sin", "cos", "tan", "abs", "pi", "e"};
 
 void handel_functions(std::vector<std::string> &tokens, int i, std::function<double(double)> f);
 int get_last_bracket_pos(std::vector<std::string> s, int start);
@@ -14,20 +14,20 @@ std::vector<std::string> eval(std::vector<std::string> tokens);
 
 int main(int argc, char const *argv[])
 {
-    std::cout << eval(tokenize("8/2*sin(2+2*tan((2))/2)*2^cos(3.5+5)"))[0];
+    std::cout << eval(tokenize("8/2*sin(2+2*tan((2))/2)*2^cos(3.5+5)"))[0] << '\n';
+    std::cout << eval(tokenize("abs(sin(pi*(7/4)))"))[0];
     return 0;
 }
 
 std::vector<std::string> eval(std::vector<std::string> tokens)
 {
     // constants
-    for (int i = 0; tokens.size() > 1 && i < tokens.size() - 1; i++)
+    for (int i = 0; i < tokens.size(); i++)
     {
-
         if (tokens[i] == "pi")
-        {
             tokens[i] = std::to_string(std::numbers::pi);
-        }
+        if (tokens[i] == "e")
+            tokens[i] = std::to_string(std::numbers::e);
     }
 
     // functions
@@ -46,6 +46,11 @@ std::vector<std::string> eval(std::vector<std::string> tokens)
         else if (tokens[i] == "tan")
         {
             handel_functions(tokens, i, tan);
+            i = -1;
+        }
+        else if (tokens[i] == "abs")
+        {
+            handel_functions(tokens, i, [](double x) { return std::abs(x); });
             i = -1;
         }
     }
