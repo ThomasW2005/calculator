@@ -4,20 +4,25 @@
 #include <cmath>
 #include <functional>
 
-std::vector<std::string> valid_tokens = {"+", "-", "*", "/", "^", "(", ")", "sin", "cos", "tan", "abs", "pi", "e"};
+std::vector<std::string> valid_tokens = {"+", "-", "*", "/", "^", "(", ")", "sin", "cos", "tan", "ln", "log", "abs", "pi", "e"};
 
 void handel_functions(std::vector<std::string> &tokens, int i, std::function<double(double)> f);
 int get_last_bracket_pos(std::vector<std::string> s, int start);
 void eval_and_replace_until_next_bracket(std::vector<std::string> &tokens, int i);
 std::vector<std::string> tokenize(const std::string_view &s);
 std::vector<std::string> eval(std::vector<std::string> tokens);
+double eval(std::string expr);
 
 int main(int argc, char const *argv[])
 {
-    std::cout << eval(tokenize("8/2*sin(2+2*tan((2))/2)*2^cos(3.5+5)"))[0] << '\n';
-    std::cout << eval(tokenize("abs(sin(pi*(7/4)))"))[0];
+    std::cout << eval("") << '\n';
+    // std::cout << eval(tokenize("8/2*sin(2+2*tan((2))/2)*2^cos(3.5+5)"))[0] << '\n';
+    std::cout << eval(tokenize("01   0 ( )   *1+1"))[0] << '\n';
+    // std::cout << eval(tokenize("abs(sin(pi*(7/4)))"))[0];
     return 0;
 }
+
+double eval(std::string expr) { return eval(tokenize(expr)).size() ? std::stod(eval(tokenize(expr))[0]) : 0; }
 
 std::vector<std::string> eval(std::vector<std::string> tokens)
 {
@@ -51,6 +56,16 @@ std::vector<std::string> eval(std::vector<std::string> tokens)
         else if (tokens[i] == "abs")
         {
             handel_functions(tokens, i, [](double x) { return std::abs(x); });
+            i = -1;
+        }
+        else if (tokens[i] == "ln")
+        {
+            handel_functions(tokens, i, [](double x) { return std::log(x); });
+            i = -1;
+        }
+        else if (tokens[i] == "log")
+        {
+            handel_functions(tokens, i, [](double x) { return std::log10(x); });
             i = -1;
         }
     }
@@ -155,8 +170,13 @@ int get_last_bracket_pos(std::vector<std::string> s, int start)
 void eval_and_replace_until_next_bracket(std::vector<std::string> &tokens, int i)
 {
     int j = get_last_bracket_pos(tokens, i);
+    if (j - i <= 2)
+    {
+        tokens.erase(tokens.begin() + i, tokens.begin() + j);
+        return;
+    }
     std::vector<std::string> sub_tokens = std::vector<std::string>(tokens.begin() + i + 1, tokens.begin() + j - 1);
-    std::string sub_token_eval = eval(sub_tokens)[0];
+    std::string sub_token_eval = eval(sub_tokens).at(0);
     tokens.erase(tokens.begin() + i, tokens.begin() + j);
     tokens.insert(tokens.begin() + i, sub_token_eval);
 }
