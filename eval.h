@@ -25,5 +25,5 @@ std::string get_last_error();
 int good();
 
 std::vector<Token> eval(std::vector<Token> tokens);
-std::vector<Token> tokenize(const std::string_view &s);
+std::vector<Token> lex(const std::string_view &s);
 } // namespace eval

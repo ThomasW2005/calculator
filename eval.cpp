@@ -6,7 +6,7 @@ namespace eval
 std::string last_error = "no error occured";
 std::vector<std::string> valid_tokens = {"+", "-", "*", "/", "^", "(", ")", "sin", "cos", "tan", "ln", "log", "abs", "pi", "e"};
 
-std::vector<Token> tokenize(const std::string_view &s)
+std::vector<Token> lex(const std::string_view &s) // actually a lexer now
 {
     std::vector<Token> tokens;
     std::string expr = s.data();
@@ -23,12 +23,12 @@ std::vector<Token> tokenize(const std::string_view &s)
 
     if (counter < 0)
     {
-        last_error = "TOKENIZE__MISSING_OPEN_BRACKET";
+        last_error = "SYNTAX_TOKENIZE__MISSING_OPEN_BRACKET";
         return {};
     }
     else if (counter > 0)
     {
-        last_error = "TOKENIZE__MISSING_CLOSE_BRACKET";
+        last_error = "SYNTAX_TOKENIZE__MISSING_CLOSE_BRACKET";
         return {};
     }
 
@@ -59,21 +59,59 @@ std::vector<Token> tokenize(const std::string_view &s)
         }
         if (!matched)
         {
-            last_error = "TOKENIZE__UNRECOGNIZED_TOKEN";
+            last_error = "SYNTAX_TOKENIZE__UNRECOGNIZED_TOKEN";
             return {};
         }
     }
+
+    // if a minus is before a number, make it negative and remove the minus
+    for (int i = 0; i < tokens.size(); i++)
+    {
+        if (tokens[i].token == "-" && tokens[i + 1].is_value && !tokens[i - 1].is_value)
+        {
+            tokens[i + 1].token = "-" + tokens[i + 1].token;
+            tokens.erase(tokens.begin() + i);
+        }
+        // if a plus is before a number, remove the plus
+        if (tokens[i].token == "+" && tokens[i + 1].is_value && !tokens[i - 1].is_value)
+            tokens.erase(tokens.begin() + i);
+    }
+
+    // if there are multiple minuses, combine them into one
+    // bruh makes no sense
+    // bool worked = false;
+    // do
+    // {
+    //     for (int i = 0; i < tokens.size() - 1; i++)
+    //     {
+    //         if (tokens[i].token == "-" && tokens[i + 1].token == "-")
+    //         {
+    //             worked = true;
+    //             tokens[i].token = "+";
+    //             tokens.erase(tokens.begin() + i + 1);
+    //             break;
+    //         }
+    //         if (tokens[i].token == "+" && tokens[i + 1].token == "+")
+    //         {
+    //             worked = true;
+    //             tokens[i].token = "-";
+    //             tokens.erase(tokens.begin() + i + 1);
+    //             break;
+    //         }
+    //     }
+    //     worked = false;
+    // } while (worked);
 
     for (int i = 0; i < tokens.size(); i++) // idk if it works or is right, seems to do its job just fine
     {
         if (tokens[i].token == "(" && (tokens[i + 1].token == "+" || tokens[i + 1].token == "-" || tokens[i + 1].token == "*" || tokens[i + 1].token == "/"))
         {
-            last_error = "TOKENIZE__OPERATOR_AFTER_OPEN_BRACKET";
+            last_error = "SYNTAX_TOKENIZE__OPERATOR_AFTER_OPEN_BRACKET";
             return {};
         }
         if (tokens[i].token == ")" && (tokens[i - 1].token == "+" || tokens[i - 1].token == "-" || tokens[i - 1].token == "*" || tokens[i - 1].token == "/"))
         {
-            last_error = "TOKENIZE__OPERATOR_BEFORE_CLOSE_BRACKET";
+            last_error = "SYNTAX_TOKENIZE__OPERATOR_BEFORE_CLOSE_BRACKET";
             return {};
         }
     }
@@ -85,11 +123,10 @@ std::vector<Token> tokenize(const std::string_view &s)
         if (tokens[i].token == ")" && tokens[i + 1].is_value)
             tokens.insert(tokens.begin() + i + 1, {"*", false});
     }
-
     return tokens;
 }
 
-double eval(std::string expr) { return eval(tokenize(expr)).size() ? std::stod(eval(tokenize(expr))[0].token) : 0; }
+double eval(std::string expr) { return eval(lex(expr)).size() ? std::stod(eval(lex(expr))[0].token) : 0; }
 
 std::vector<Token> eval(std::vector<Token> tokens)
 {
@@ -167,9 +204,9 @@ std::vector<Token> eval(std::vector<Token> tokens)
     {
         if (tokens[i].token == "*" || tokens[i].token == "/")
         {
-            if (tokens[i].token == "/" && tokens[i + 1].token == "0")
+            if (tokens[i].token == "/" && !std::abs(std::stod(tokens[i + 1].token)))
             {
-                last_error = "EVAL__DIVIDE_BY_ZERO";
+                last_error = "SEMANTIC_EVAL__DIVIDE_BY_ZERO";
                 return {};
             }
             double a = std::stod(tokens[i - 1].token);
@@ -208,7 +245,7 @@ int get_last_bracket_pos(std::vector<Token> s, int start)
         if (count == 0)
             return i + 1;
     }
-    last_error = "EVAL__NO_CLOSING_BRACKET";
+    last_error = "SYNTAX_EVAL__NO_CLOSING_BRACKET";
     return -1;
 }
 
