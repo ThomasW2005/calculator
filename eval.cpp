@@ -2,12 +2,13 @@
 
 namespace eval
 {
+
 std::string last_error = "no error occured";
 std::vector<std::string> valid_tokens = {"+", "-", "*", "/", "^", "(", ")", "sin", "cos", "tan", "ln", "log", "abs", "pi", "e"};
 
-std::vector<std::string> tokenize(const std::string_view &s)
+std::vector<Token> tokenize(const std::string_view &s)
 {
-    std::vector<std::string> tokens;
+    std::vector<Token> tokens;
     std::string expr = s.data();
     expr.erase(std::remove(expr.begin(), expr.end(), ' '), expr.end()); // remove all spaces
     int counter = 0;
@@ -43,7 +44,7 @@ std::vector<std::string> tokenize(const std::string_view &s)
                 number += expr[0];
                 expr.erase(0, 1);
             }
-            tokens.push_back(number);
+            tokens.push_back({number, true});
         }
 
         for (auto i : valid_tokens)
@@ -51,7 +52,7 @@ std::vector<std::string> tokenize(const std::string_view &s)
             if (expr.starts_with(i))
             {
                 matched = 1;
-                tokens.push_back(i);
+                tokens.push_back({i, false});
                 expr.erase(0, i.size());
                 break;
             }
@@ -65,23 +66,32 @@ std::vector<std::string> tokenize(const std::string_view &s)
 
     for (int i = 0; i < tokens.size(); i++) // idk if it works or is right, seems to do its job just fine
     {
-        if (tokens[i] == "(" && (tokens[i + 1] == "+" || tokens[i + 1] == "-" || tokens[i + 1] == "*" || tokens[i + 1] == "/"))
+        if (tokens[i].token == "(" && (tokens[i + 1].token == "+" || tokens[i + 1].token == "-" || tokens[i + 1].token == "*" || tokens[i + 1].token == "/"))
         {
             last_error = "TOKENIZE__OPERATOR_AFTER_OPEN_BRACKET";
             return {};
         }
-        if (tokens[i] == ")" && (tokens[i - 1] == "+" || tokens[i - 1] == "-" || tokens[i - 1] == "*" || tokens[i - 1] == "/"))
+        if (tokens[i].token == ")" && (tokens[i - 1].token == "+" || tokens[i - 1].token == "-" || tokens[i - 1].token == "*" || tokens[i - 1].token == "/"))
         {
             last_error = "TOKENIZE__OPERATOR_BEFORE_CLOSE_BRACKET";
             return {};
         }
     }
+
+    for (int i = 1; i < tokens.size() - 1; i++) // idk if it works or is right, seems to do its job just fine
+    {
+        if (tokens[i].token == "(" && tokens[i - 1].is_value)
+            tokens.insert(tokens.begin() + i, {"*", false});
+        if (tokens[i].token == ")" && tokens[i + 1].is_value)
+            tokens.insert(tokens.begin() + i + 1, {"*", false});
+    }
+
     return tokens;
 }
 
-double eval(std::string expr) { return eval(tokenize(expr)).size() ? std::stod(eval(tokenize(expr))[0]) : 0; }
+double eval(std::string expr) { return eval(tokenize(expr)).size() ? std::stod(eval(tokenize(expr))[0].token) : 0; }
 
-std::vector<std::string> eval(std::vector<std::string> tokens)
+std::vector<Token> eval(std::vector<Token> tokens)
 {
     if (last_error != "no error occured")
     {
@@ -90,41 +100,41 @@ std::vector<std::string> eval(std::vector<std::string> tokens)
     // constants
     for (int i = 0; i < tokens.size(); i++)
     {
-        if (tokens[i] == "pi")
-            tokens[i] = std::to_string(std::numbers::pi);
-        if (tokens[i] == "e")
-            tokens[i] = std::to_string(std::numbers::e);
+        if (tokens[i].token == "pi")
+            tokens[i].token = std::to_string(std::numbers::pi);
+        if (tokens[i].token == "e")
+            tokens[i].token = std::to_string(std::numbers::e);
     }
 
     // functions
     for (int i = 0; tokens.size() > 1 && i < tokens.size() - 1; i++)
     {
-        if (tokens[i] == "sin")
+        if (tokens[i].token == "sin")
         {
             handel_functions(tokens, i, [](double x) { return std::cos(x); });
             i = -1;
         }
-        else if (tokens[i] == "cos")
+        else if (tokens[i].token == "cos")
         {
             handel_functions(tokens, i, [](double x) { return std::cos(x); });
             i = -1;
         }
-        else if (tokens[i] == "tan")
+        else if (tokens[i].token == "tan")
         {
             handel_functions(tokens, i, [](double x) { return std::tan(x); });
             i = -1;
         }
-        else if (tokens[i] == "abs")
+        else if (tokens[i].token == "abs")
         {
             handel_functions(tokens, i, [](double x) { return std::abs(x); });
             i = -1;
         }
-        else if (tokens[i] == "ln")
+        else if (tokens[i].token == "ln")
         {
             handel_functions(tokens, i, [](double x) { return std::log(x); });
             i = -1;
         }
-        else if (tokens[i] == "log")
+        else if (tokens[i].token == "log")
         {
             handel_functions(tokens, i, [](double x) { return std::log10(x); });
             i = -1;
@@ -134,7 +144,7 @@ std::vector<std::string> eval(std::vector<std::string> tokens)
     // parentheses
     for (int i = 0; tokens.size() > 1 && i < tokens.size() - 1; i++)
     {
-        if (tokens[i] == "(")
+        if (tokens[i].token == "(")
             eval_and_replace_until_next_bracket(tokens, i--);
     }
 
@@ -142,11 +152,11 @@ std::vector<std::string> eval(std::vector<std::string> tokens)
     for (int i = 0; tokens.size() > 1 && i < tokens.size() - 1; i++)
     {
 
-        if (tokens[i] == "^")
+        if (tokens[i].token == "^")
         {
-            double a = std::stod(tokens[i - 1]);
-            double b = std::stod(tokens[i + 1]);
-            tokens[i - 1] = std::to_string(pow(a, b));
+            double a = std::stod(tokens[i - 1].token);
+            double b = std::stod(tokens[i + 1].token);
+            tokens[i - 1].token = std::to_string(pow(a, b));
             tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
             i = -1;
         }
@@ -155,16 +165,16 @@ std::vector<std::string> eval(std::vector<std::string> tokens)
     // divide and muliply
     for (int i = 0; tokens.size() > 1 && i < tokens.size() - 1; i++)
     {
-        if (tokens[i] == "*" || tokens[i] == "/")
+        if (tokens[i].token == "*" || tokens[i].token == "/")
         {
-            if (tokens[i] == "/" && tokens[i + 1] == "0")
+            if (tokens[i].token == "/" && tokens[i + 1].token == "0")
             {
                 last_error = "EVAL__DIVIDE_BY_ZERO";
                 return {};
             }
-            double a = std::stod(tokens[i - 1]);
-            double b = std::stod(tokens[i + 1]);
-            tokens[i - 1] = tokens[i] == "*" ? std::to_string(a * b) : std::to_string(a / b);
+            double a = std::stod(tokens[i - 1].token);
+            double b = std::stod(tokens[i + 1].token);
+            tokens[i - 1].token = tokens[i].token == "*" ? std::to_string(a * b) : std::to_string(a / b);
             tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
             i = -1;
         }
@@ -173,11 +183,11 @@ std::vector<std::string> eval(std::vector<std::string> tokens)
     // addition and subtraction
     for (int i = 0; tokens.size() > 1 && i < tokens.size() - 1; i++)
     {
-        if (tokens[i] == "+" || tokens[i] == "-")
+        if (tokens[i].token == "+" || tokens[i].token == "-")
         {
-            double a = std::stod(tokens[i - 1]);
-            double b = std::stod(tokens[i + 1]);
-            tokens[i - 1] = tokens[i] == "+" ? std::to_string(a + b) : std::to_string(a - b);
+            double a = std::stod(tokens[i - 1].token);
+            double b = std::stod(tokens[i + 1].token);
+            tokens[i - 1].token = tokens[i].token == "+" ? std::to_string(a + b) : std::to_string(a - b);
             tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
             i = -1;
         }
@@ -186,14 +196,14 @@ std::vector<std::string> eval(std::vector<std::string> tokens)
     return tokens;
 }
 
-int get_last_bracket_pos(std::vector<std::string> s, int start)
+int get_last_bracket_pos(std::vector<Token> s, int start)
 {
     int count = 0;
     for (int i = start; i < s.size(); i++)
     {
-        if (s[i] == "(")
+        if (s[i].token == "(")
             count++;
-        else if (s[i] == ")")
+        else if (s[i].token == ")")
             count--;
         if (count == 0)
             return i + 1;
@@ -202,7 +212,7 @@ int get_last_bracket_pos(std::vector<std::string> s, int start)
     return -1;
 }
 
-void eval_and_replace_until_next_bracket(std::vector<std::string> &tokens, int i)
+void eval_and_replace_until_next_bracket(std::vector<Token> &tokens, int i)
 {
     int j = get_last_bracket_pos(tokens, i);
     if (j - i <= 2)
@@ -210,20 +220,20 @@ void eval_and_replace_until_next_bracket(std::vector<std::string> &tokens, int i
         tokens.erase(tokens.begin() + i, tokens.begin() + j);
         return;
     }
-    std::vector<std::string> sub_tokens = std::vector<std::string>(tokens.begin() + i + 1, tokens.begin() + j - 1);
-    std::string sub_token_eval = eval(sub_tokens).at(0);
+    std::vector<Token> sub_tokens = std::vector<Token>(tokens.begin() + i + 1, tokens.begin() + j - 1);
+    Token sub_token_eval = eval(sub_tokens).at(0);
     tokens.erase(tokens.begin() + i, tokens.begin() + j);
     tokens.insert(tokens.begin() + i, sub_token_eval);
 }
 
-void handel_functions(std::vector<std::string> &tokens, int i, std::function<double(double)> f)
+void handel_functions(std::vector<Token> &tokens, int i, std::function<double(double)> f)
 {
     eval_and_replace_until_next_bracket(tokens, i + 1);
-    double num_val_before = std::stod(tokens[i + 1]);
+    double num_val_before = std::stod(tokens[i + 1].token);
 
     double num_val_after = f(num_val_before);
 
-    tokens[i] = std::to_string(num_val_after);
+    tokens[i].token = std::to_string(num_val_after);
     tokens.erase(tokens.begin() + i + 1);
 }
 
